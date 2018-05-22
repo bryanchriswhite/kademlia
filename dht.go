@@ -144,7 +144,7 @@ func (dht *DHT) Store(data []byte) (id string, err error) {
 	expiration := dht.getExpirationTime(key)
 	replication := time.Now().Add(dht.options.TReplicate)
 	dht.store.Store(key, data, replication, expiration, true)
-	_, _, err = dht.iterate(iterateStore, key[:], data)
+	_, _, err = dht.Iterate(iterateStore, key[:], data)
 	if err != nil {
 		return "", err
 	}
@@ -164,7 +164,7 @@ func (dht *DHT) Get(key string) (data []byte, found bool, err error) {
 
 	if !exists {
 		var err error
-		value, _, err = dht.iterate(iterateFindValue, keyBytes, nil)
+		value, _, err = dht.Iterate(iterateFindValue, keyBytes, nil)
 		if err != nil {
 			return nil, false, err
 		}
@@ -283,7 +283,7 @@ func (dht *DHT) Bootstrap() error {
 	wg.Wait()
 
 	if dht.NumNodes() > 0 {
-		_, _, err := dht.iterate(iterateFindNode, dht.ht.Self.ID, nil)
+		_, _, err := dht.Iterate(iterateFindNode, dht.ht.Self.ID, nil)
 		return err
 	}
 
@@ -303,7 +303,7 @@ func (dht *DHT) Disconnect() error {
 //     iterativeStore - Used to store new information in the network.
 //     iterativeFindNode - Used to bootstrap the network.
 //     iterativeFindValue - Used to find a value among the network given a key.
-func (dht *DHT) iterate(t int, target []byte, data []byte) (value []byte, closest []*NetworkNode, err error) {
+func (dht *DHT) Iterate(t int, target []byte, data []byte) (value []byte, closest []*NetworkNode, err error) {
 	sl := dht.ht.getClosestContacts(alpha, target, []*NetworkNode{})
 
 	// We keep track of nodes contacted so far. We don't contact the same node
@@ -555,7 +555,7 @@ func (dht *DHT) timers() {
 			for i := 0; i < b; i++ {
 				if time.Since(dht.ht.getRefreshTimeForBucket(i)) > dht.options.TRefresh {
 					id := dht.ht.getRandomIDFromBucket(k)
-					dht.iterate(iterateFindNode, id, nil)
+					dht.Iterate(iterateFindNode, id, nil)
 				}
 			}
 
@@ -563,7 +563,7 @@ func (dht *DHT) timers() {
 			keys := dht.store.GetAllKeysForReplication()
 			for _, key := range keys {
 				value, _ := dht.store.Retrieve(key)
-				dht.iterate(iterateStore, key, value)
+				dht.Iterate(iterateStore, key, value)
 			}
 
 			// Expiration
