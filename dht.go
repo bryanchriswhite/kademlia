@@ -290,6 +290,36 @@ func (dht *DHT) Bootstrap() error {
 	return nil
 }
 
+// Ping sends a message to the specifed node if a response before the timeout occurs,
+// true is returned false otherwise
+func (dht *DHT) Ping(node *NetworkNode) (ok bool, err error) {
+	query := &message{
+		Sender:   dht.ht.Self,
+		Receiver: node,
+		Type:     messageTypePing,
+	}
+
+	res, err := dht.networking.sendMessage(query, true, -1)
+	if err != nil {
+		return false, err
+	}
+
+	select {
+	case result := <-res.ch:
+		// If result is nil, channel was closed
+		if result != nil {
+			if string(result.Sender.ID) == string(node.ID) {
+				return true, nil
+			}
+
+		}
+		return
+	case <-time.After(dht.options.TMsgTimeout):
+		dht.networking.cancelResponse(res)
+		return false, nil
+	}
+}
+
 // Disconnect will trigger a disconnect from the network. All underlying sockets
 // will be closed.
 func (dht *DHT) Disconnect() error {
