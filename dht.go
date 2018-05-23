@@ -499,6 +499,154 @@ func (dht *DHT) Iterate(t int, target []byte, data []byte) (value []byte, closes
 	}
 }
 
+func (dht *DHT) FindNode(ID []byte) ([]*NetworkNode, error) {
+	sl := dht.ht.getClosestContacts(alpha, ID, []*NetworkNode{})
+
+	// We keep track of nodes contacted so far. We don't contact the same node
+	// twice.
+	var contacted = make(map[string]bool)
+
+	// According to the Kademlia white paper, after a round of FIND_NODE RPCs
+	// fails to provide a node closer than closestNode, we should send a
+	// FIND_NODE RPC to all remaining nodes in the shortlist that have not
+	// yet been contacted.
+	queryRest := false
+
+	// We keep a reference to the closestNode. If after performing a search
+	// we do not find a closer node, we stop searching.
+	if len(sl.Nodes) == 0 {
+		return nil, nil
+	}
+
+	closestNode := sl.Nodes[0]
+
+	// TODO: what does this do ?
+	bucket := getBucketIndexFromDifferingBit(ID, dht.ht.Self.ID)
+	dht.ht.resetRefreshTimeForBucket(bucket)
+
+	removeFromShortlist := []*NetworkNode{}
+
+	for {
+		expectedResponses := []*expectedResponse{}
+		numExpectedResponses := 0
+
+		// Next we send messages to the first (closest) alpha nodes in the
+		// shortlist and wait for a response
+
+		for i, node := range sl.Nodes {
+			// Contact only alpha nodes
+			if i >= alpha && !queryRest {
+				break
+			}
+
+			// Don't contact nodes already contacted
+			if contacted[string(node.ID)] == true {
+				continue
+			}
+
+			contacted[string(node.ID)] = true
+			query := &message{
+				Sender:   dht.ht.Self,
+				Receiver: node,
+				Type:     messageTypeFindNode,
+				Data:     &queryDataFindNode{Target: ID},
+			}
+
+			// Send the async queries and wait for a response
+			res, err := dht.networking.sendMessage(query, true, -1)
+			if err != nil {
+				// Node was unreachable for some reason. We will have to remove
+				// it from the shortlist, but we will keep it in our routing
+				// table in hopes that it might come back online in the future.
+				// TODO: should we?
+				// why not just remove here instead of appending?
+				removeFromShortlist = append(removeFromShortlist, query.Receiver)
+				continue
+			}
+
+			expectedResponses = append(expectedResponses, res)
+		}
+
+		for _, n := range removeFromShortlist {
+			sl.RemoveNode(n)
+		}
+
+		numExpectedResponses = len(expectedResponses)
+
+		resultChan := make(chan (*message))
+		for _, r := range expectedResponses {
+			go func(r *expectedResponse) {
+				select {
+				case result := <-r.ch:
+					if result == nil {
+						// Channel was closed :(
+						return
+					}
+					dht.addNode(newNode(result.Sender))
+					resultChan <- result
+					return
+				case <-time.After(dht.options.TMsgTimeout):
+					dht.networking.cancelResponse(r)
+					return
+				}
+			}(r)
+		}
+
+		var results []*message
+		if numExpectedResponses > 0 {
+		Loop:
+			for {
+				select {
+				case result := <-resultChan:
+					if result != nil {
+						results = append(results, result)
+					} else {
+						numExpectedResponses--
+					}
+					if len(results) == numExpectedResponses {
+						close(resultChan)
+						break Loop
+					}
+				case <-time.After(dht.options.TMsgTimeout):
+					close(resultChan)
+					break Loop
+				}
+			}
+
+			for _, result := range results {
+				if result.Error != nil {
+					sl.RemoveNode(result.Receiver)
+					continue
+				}
+
+				responseData := result.Data.(*responseDataFindNode)
+				sl.AppendUniqueNetworkNodes(responseData.Closest)
+
+			}
+		}
+
+		if !queryRest && len(sl.Nodes) == 0 {
+			return nil, nil
+		}
+
+		sort.Sort(sl)
+
+		// If closestNode is unchanged then we are done
+		if bytes.Compare(sl.Nodes[0].ID, closestNode.ID) == 0 || queryRest {
+			// We are done
+
+			if !queryRest {
+				queryRest = true
+				continue
+			}
+			return sl.Nodes, nil
+
+		}
+
+		closestNode = sl.Nodes[0]
+	}
+}
+
 // addNode adds a node into the appropriate k bucket
 // we store these buckets in big-endian order so we look at the bits
 // from right to left in order to find the appropriate bucket
