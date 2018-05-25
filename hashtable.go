@@ -31,8 +31,8 @@ const (
 	k = 20
 )
 
-// hashTable represents the hashtable state
-type hashTable struct {
+// HashTable represents the hashtable state
+type HashTable struct {
 	// The ID of the local node
 	Self *NetworkNode
 
@@ -48,8 +48,8 @@ type hashTable struct {
 	refreshMap [b]time.Time
 }
 
-func newHashTable(options *Options) (*hashTable, error) {
-	ht := &hashTable{}
+func newHashTable(options *Options) (*HashTable, error) {
+	ht := &HashTable{}
 
 	rand.Seed(time.Now().UnixNano())
 
@@ -86,7 +86,7 @@ func newHashTable(options *Options) (*hashTable, error) {
 	return ht, nil
 }
 
-func (ht *hashTable) setSelfAddr(ip string, port string) error {
+func (ht *HashTable) setSelfAddr(ip string, port string) error {
 	ht.Self.IP = net.ParseIP(ip)
 	p, err := strconv.Atoi(port)
 	if err != nil {
@@ -96,19 +96,19 @@ func (ht *hashTable) setSelfAddr(ip string, port string) error {
 	return nil
 }
 
-func (ht *hashTable) resetRefreshTimeForBucket(bucket int) {
+func (ht *HashTable) resetRefreshTimeForBucket(bucket int) {
 	ht.mutex.Lock()
 	defer ht.mutex.Unlock()
 	ht.refreshMap[bucket] = time.Now()
 }
 
-func (ht *hashTable) getRefreshTimeForBucket(bucket int) time.Time {
+func (ht *HashTable) getRefreshTimeForBucket(bucket int) time.Time {
 	ht.mutex.Lock()
 	defer ht.mutex.Unlock()
 	return ht.refreshMap[bucket]
 }
 
-func (ht *hashTable) markNodeAsSeen(node []byte) {
+func (ht *HashTable) markNodeAsSeen(node []byte) {
 	ht.mutex.Lock()
 	defer ht.mutex.Unlock()
 	index := getBucketIndexFromDifferingBit(ht.Self.ID, node)
@@ -130,7 +130,7 @@ func (ht *hashTable) markNodeAsSeen(node []byte) {
 	ht.RoutingTable[index] = bucket
 }
 
-func (ht *hashTable) doesNodeExistInBucket(bucket int, node []byte) bool {
+func (ht *HashTable) doesNodeExistInBucket(bucket int, node []byte) bool {
 	ht.mutex.Lock()
 	defer ht.mutex.Unlock()
 	for _, v := range ht.RoutingTable[bucket] {
@@ -141,7 +141,7 @@ func (ht *hashTable) doesNodeExistInBucket(bucket int, node []byte) bool {
 	return false
 }
 
-func (ht *hashTable) getClosestContacts(num int, target []byte, ignoredNodes []*NetworkNode) *shortList {
+func (ht *HashTable) getClosestContacts(num int, target []byte, ignoredNodes []*NetworkNode) *shortList {
 	ht.mutex.Lock()
 	defer ht.mutex.Unlock()
 	// First we need to build the list of adjacent indices to our target
@@ -191,7 +191,39 @@ func (ht *hashTable) getClosestContacts(num int, target []byte, ignoredNodes []*
 	return sl
 }
 
-func (ht *hashTable) removeNode(ID []byte) {
+// GetClosestContacts finds all Nodes near the provided nodeID up to the provided limit
+// from the local hashtable
+func (ht *HashTable) GetClosestContacts(id []byte, limit int) []*NetworkNode {
+	return ht.getClosestContacts(limit, id, []*NetworkNode{}).Nodes
+}
+
+// GetBucket returns a bucket from the local hash table
+func (ht *HashTable) GetBucket(ID int) []*NetworkNode {
+	return nodesToNetworknodes(ht.RoutingTable[ID])
+}
+
+// GetBuckets returns all buckets from the local hash table
+func (ht *HashTable) GetBuckets() [][]*NetworkNode {
+
+	nn := [][]*NetworkNode{}
+	buckets := ht.RoutingTable
+	for i, v := range buckets {
+		nn[i] = nodesToNetworknodes(v)
+	}
+
+	return nn
+}
+
+func nodesToNetworknodes(nodes []*node) []*NetworkNode {
+	nn := []*NetworkNode{}
+	for _, v := range nodes {
+		nn = append(nn, v.NetworkNode)
+	}
+
+	return nn
+}
+
+func (ht *HashTable) removeNode(ID []byte) {
 	ht.mutex.Lock()
 	defer ht.mutex.Unlock()
 
@@ -207,7 +239,7 @@ func (ht *hashTable) removeNode(ID []byte) {
 	ht.RoutingTable[index] = bucket
 }
 
-func (ht *hashTable) getAllNodesInBucketCloserThan(bucket int, id []byte) [][]byte {
+func (ht *HashTable) getAllNodesInBucketCloserThan(bucket int, id []byte) [][]byte {
 	b := ht.RoutingTable[bucket]
 	var nodes [][]byte
 	for _, v := range b {
@@ -223,13 +255,13 @@ func (ht *hashTable) getAllNodesInBucketCloserThan(bucket int, id []byte) [][]by
 	return nodes
 }
 
-func (ht *hashTable) getTotalNodesInBucket(bucket int) int {
+func (ht *HashTable) getTotalNodesInBucket(bucket int) int {
 	ht.mutex.Lock()
 	defer ht.mutex.Unlock()
 	return len(ht.RoutingTable[bucket])
 }
 
-func (ht *hashTable) getDistance(id1 []byte, id2 []byte) *big.Int {
+func (ht *HashTable) getDistance(id1 []byte, id2 []byte) *big.Int {
 	var dst [k]byte
 	for i := 0; i < k; i++ {
 		dst[i] = id1[i] ^ id2[i]
@@ -238,7 +270,7 @@ func (ht *hashTable) getDistance(id1 []byte, id2 []byte) *big.Int {
 	return ret.SetBytes(dst[:])
 }
 
-func (ht *hashTable) getRandomIDFromBucket(bucket int) []byte {
+func (ht *HashTable) getRandomIDFromBucket(bucket int) []byte {
 	ht.mutex.Lock()
 	defer ht.mutex.Unlock()
 	// Set the new ID to to be equal in every byte up to
@@ -300,7 +332,7 @@ func getBucketIndexFromDifferingBit(id1 []byte, id2 []byte) int {
 	return 0
 }
 
-func (ht *hashTable) totalNodes() int {
+func (ht *HashTable) totalNodes() int {
 	ht.mutex.Lock()
 	defer ht.mutex.Unlock()
 	var total int

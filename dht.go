@@ -15,7 +15,7 @@ import (
 
 // DHT represents the state of the local node in the distributed hash table
 type DHT struct {
-	ht         *hashTable
+	ht         *HashTable
 	options    *Options
 	networking networking
 	store      Store
