@@ -102,6 +102,15 @@ func (ht *HashTable) resetRefreshTimeForBucket(bucket int) {
 	ht.refreshMap[bucket] = time.Now()
 }
 
+// SetBucketTime writes a new refresh time to the refresh map
+func (ht *HashTable) SetBucketTime(id int, t time.Time) {
+	ht.mutex.Lock()
+	defer ht.mutex.Unlock()
+	ht.refreshMap[id] = t
+
+	return
+}
+
 func (ht *HashTable) getRefreshTimeForBucket(bucket int) time.Time {
 	ht.mutex.Lock()
 	defer ht.mutex.Unlock()

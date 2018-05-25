@@ -138,6 +138,11 @@ func (dht *DHT) getExpirationTime(key []byte) time.Time {
 	return time.Now().Add(dur)
 }
 
+// GetExpirationTime returns the expiration time for a bucket
+func (dht *DHT) GetExpirationTime(key []byte) time.Time {
+	return dht.getExpirationTime(key)
+}
+
 // Store stores data on the network. This will trigger an iterateStore message.
 // The base58 encoded identifier will be returned if the store is successful.
 func (dht *DHT) Store(data []byte) (id string, err error) {
