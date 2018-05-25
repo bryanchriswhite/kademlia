@@ -2,6 +2,7 @@ package kademlia
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"log"
 	"math"
@@ -529,6 +530,8 @@ func (dht *DHT) Iterate(t int, target []byte, data []byte) (value []byte, closes
 	}
 }
 
+// FindNode looks up a given nodeID on the network returning an array of the closest nodes
+// if found, the first node in the array will be the request node.
 func (dht *DHT) FindNode(ID []byte) ([]*NetworkNode, error) {
 	sl := dht.ht.getClosestContacts(alpha, ID, []*NetworkNode{})
 
@@ -675,6 +678,11 @@ func (dht *DHT) FindNode(ID []byte) ([]*NetworkNode, error) {
 
 		closestNode = sl.Nodes[0]
 	}
+}
+
+// FindNodes looks up all of the closest nodes to start and up to the provided limit
+func (dht *DHT) FindNodes(ctx context.Context, start string, limit int) ([]*NetworkNode, error) {
+	return dht.ht.getClosestContacts(alpha, []byte(start), []*NetworkNode{}).Nodes[:limit], nil
 }
 
 // addNode adds a node into the appropriate k bucket
