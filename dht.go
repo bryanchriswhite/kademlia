@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"math"
 	"sort"
@@ -16,6 +17,7 @@ import (
 // DHT represents the state of the local node in the distributed hash table
 type DHT struct {
 	ht         *HashTable
+	HT         *HashTable
 	options    *Options
 	networking networking
 	store      Store
@@ -84,6 +86,7 @@ func NewDHT(store Store, options *Options) (*DHT, error) {
 
 	dht.store = store
 	dht.ht = ht
+	dht.HT = ht
 	dht.networking = &realNetworking{}
 
 	store.Init()
@@ -538,8 +541,7 @@ func (dht *DHT) Iterate(t int, target []byte, data []byte) (value []byte, closes
 // FindNode looks up a given nodeID on the network returning an array of the closest nodes
 // if found, the first node in the array will be the request node.
 func (dht *DHT) FindNode(ID []byte) ([]*NetworkNode, error) {
-	sl := dht.ht.getClosestContacts(alpha, ID, []*NetworkNode{})
-
+	sl := dht.ht.getClosestContacts(20, ID, []*NetworkNode{})
 	// We keep track of nodes contacted so far. We don't contact the same node
 	// twice.
 	var contacted = make(map[string]bool)
@@ -593,6 +595,7 @@ func (dht *DHT) FindNode(ID []byte) ([]*NetworkNode, error) {
 			// Send the async queries and wait for a response
 			res, err := dht.networking.sendMessage(query, true, -1)
 			if err != nil {
+				fmt.Printf("unreachable: %v\n", query.Receiver.ID)
 				// Node was unreachable for some reason. We will have to remove
 				// it from the shortlist, but we will keep it in our routing
 				// table in hopes that it might come back online in the future.
@@ -687,7 +690,16 @@ func (dht *DHT) FindNode(ID []byte) ([]*NetworkNode, error) {
 
 // FindNodes looks up all of the closest nodes to start and up to the provided limit
 func (dht *DHT) FindNodes(ctx context.Context, start string, limit int) ([]*NetworkNode, error) {
-	return dht.ht.getClosestContacts(alpha, []byte(start), []*NetworkNode{}).Nodes[:limit], nil
+	nn, err := dht.FindNode([]byte(start))
+	if err != nil {
+		return nil, err
+	}
+
+	if len(nn) <= limit {
+		return nn, nil
+	}
+
+	return nn[:limit], nil
 }
 
 // addNode adds a node into the appropriate k bucket

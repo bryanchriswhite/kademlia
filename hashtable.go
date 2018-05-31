@@ -86,6 +86,11 @@ func newHashTable(options *Options) (*HashTable, error) {
 	return ht, nil
 }
 
+// NewHashTable returns a newly configured instance of a HashTable
+func NewHashTable(options *Options) (*HashTable, error) {
+	return newHashTable(options)
+}
+
 func (ht *HashTable) setSelfAddr(ip string, port string) error {
 	ht.Self.IP = net.ParseIP(ip)
 	p, err := strconv.Atoi(port)
