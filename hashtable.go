@@ -212,8 +212,9 @@ func (ht *HashTable) GetClosestContacts(id []byte, limit int) []*NetworkNode {
 }
 
 // GetBucket returns a bucket from the local hash table
-func (ht *HashTable) GetBucket(ID int) []*NetworkNode {
-	return nodesToNetworknodes(ht.RoutingTable[ID])
+func (ht *HashTable) GetBucket(ID []byte) []*NetworkNode {
+	bucket := getBucketIndexFromDifferingBit(ht.Self.ID, ID)
+	return nodesToNetworknodes(ht.RoutingTable[bucket])
 }
 
 // GetBuckets returns all buckets from the local hash table
