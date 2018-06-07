@@ -29,8 +29,13 @@ type node struct {
 // NewNetworkNode creates a new NetworkNode for bootstrapping
 func NewNetworkNode(ip string, port string) *NetworkNode {
 	p, _ := strconv.Atoi(port)
+	ips, err := net.LookupIP(ip)
+	if len(ips) <= 0 || err != nil {
+		return nil
+	}
+
 	return &NetworkNode{
-		IP:   net.ParseIP(ip),
+		IP:   ips[0],
 		Port: p,
 	}
 }
