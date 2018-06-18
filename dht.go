@@ -254,17 +254,17 @@ func (dht *DHT) Bootstrap() error {
 		query.Sender = dht.ht.Self
 		query.Receiver = bn
 		query.Type = messageTypePing
-		if bn.ID == nil {
-			res, err := dht.networking.sendMessage(query, true, -1)
-			if err != nil {
-				continue
-			}
-			wg.Add(1)
-			expectedResponses = append(expectedResponses, res)
-		} else {
-			node := newNode(bn)
-			dht.addNode(node)
+		// if bn.ID == nil {
+		res, err := dht.networking.sendMessage(query, true, -1)
+		if err != nil {
+			continue
 		}
+		wg.Add(1)
+		expectedResponses = append(expectedResponses, res)
+		// } else {
+		node := newNode(bn)
+		dht.addNode(node)
+		// }
 	}
 
 	numExpectedResponses := len(expectedResponses)
