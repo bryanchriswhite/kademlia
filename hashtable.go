@@ -219,11 +219,10 @@ func (ht *HashTable) GetBucket(ID []byte) []*NetworkNode {
 
 // GetBuckets returns all buckets from the local hash table
 func (ht *HashTable) GetBuckets() [][]*NetworkNode {
-
-	nn := [][]*NetworkNode{}
 	buckets := ht.RoutingTable
-	for i, v := range buckets {
-		nn[i] = nodesToNetworknodes(v)
+	nn := [][]*NetworkNode{}
+	for _, v := range buckets {
+		nn = append(nn, nodesToNetworknodes(v))
 	}
 
 	return nn
